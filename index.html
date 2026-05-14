@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ChainVerse — Web3 Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=IBM+Plex+Mono:wght@300;400;600;700&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#02060f;--bg2:#040d1a;--surface:#071425;--surface2:#0a1d33;--border:#0f2d4a;--border2:#1a4060;
+  --cyan:#00e5ff;--orange:#f7931a;--purple:#7c3aed;--green:#00ff88;--red:#ff4560;--yellow:#ffd60a;
+  --text:#dff0ff;--muted:#4a7a9b;--dim:#1e3a55;
+  --font-display:'Orbitron',monospace;
+  --font-mono:'IBM Plex Mono',monospace;
+  --font-body:'Rajdhani',sans-serif;
+  --glow-cyan:0 0 20px rgba(0,229,255,0.4);
+  --glow-orange:0 0 20px rgba(247,147,26,0.4);
+  --transition: cubic-bezier(0.16,1,0.3,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);overflow-x:hidden;cursor:none}
+
+/* ── CUSTOM CURSOR ── */
+#cursor{position:fixed;width:12px;height:12px;background:var(--cyan);border-radius:50%;pointer-events:none;z-index:10000;transition:transform 0.1s,background 0.2s;mix-blend-mode:screen}
+#cursor-trail{position:fixed;width:32px;height:32px;border:1px solid rgba(0,229,255,0.4);border-radius:50%;pointer-events:none;z-index:9999;transition:all 0.12s ease;mix-blend-mode:screen}
+body:hover #cursor{opacity:1}
+
+/* ── CANVAS BACKGROUND ── */
+#bg-canvas{position:fixed;inset:0;z-index:0;opacity:0.5}
+
+/* ── NAV ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:500;height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 2rem;
+  background:rgba(2,6,15,0.7);backdrop-filter:blur(24px);border-bottom:1px solid var(--border)}
+nav::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:0.4}
+.nav-logo{font-family:var(--font-display);font-size:1rem;font-weight:900;letter-spacing:3px;
+  background:linear-gradient(135deg,var(--cyan),#0099bb);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  position:relative;cursor:pointer}
+.nav-logo::after{content:'v2.0';position:absolute;right:-28px;top:-4px;font-size:0.45rem;color:var(--orange);letter-spacing:1px;border:1px solid var(--orange);padding:1px 3px;border-radius:2px;-webkit-text-fill-color:var(--orange)}
+.nav-links{display:flex;gap:4px}
+.nav-btn{background:none;border:1px solid transparent;color:var(--muted);font-family:var(--font-mono);font-size:0.68rem;letter-spacing:2px;
+  padding:0.45rem 1.1rem;border-radius:4px;cursor:pointer;transition:all 0.3s;text-transform:uppercase;position:relative;overflow:hidden}
+.nav-btn::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent,rgba(0,229,255,0.06));opacity:0;transition:opacity 0.3s}
+.nav-btn:hover{color:var(--cyan);border-color:rgba(0,229,255,0.3)}
+.nav-btn:hover::before{opacity:1}
+.nav-btn.active{color:var(--cyan);border-color:var(--cyan);background:rgba(0,229,255,0.07);box-shadow:var(--glow-cyan)}
+.nav-indicator{position:absolute;bottom:-1px;left:0;height:2px;background:var(--cyan);transition:all 0.4s var(--transition);box-shadow:var(--glow-cyan)}
+
+/* ── PAGE SYSTEM ── */
+.page{display:none;min-height:100vh;padding-top:64px;position:relative;z-index:1}
+.page.active{display:block;animation:pageIn 0.6s var(--transition) both}
+@keyframes pageIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── NOISE OVERLAY ── */
+body::before{content:'';position:fixed;inset:0;z-index:0;opacity:0.025;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events:none}
+
+/* ══════════════════════════════════════
+   PAGE 1 — HOME
+══════════════════════════════════════ */
+.hero{min-height:calc(100vh - 64px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:4rem 2rem;position:relative;overflow:hidden}
+.hero-rings{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.ring{position:absolute;border-radius:50%;border:1px solid rgba(0,229,255,0.06)}
+.ring:nth-child(1){width:300px;height:300px;animation:ringPulse 4s ease-in-out infinite}
+.ring:nth-child(2){width:500px;height:500px;animation:ringPulse 4s 0.5s ease-in-out infinite}
+.ring:nth-child(3){width:700px;height:700px;animation:ringPulse 4s 1s ease-in-out infinite}
+.ring:nth-child(4){width:900px;height:900px;animation:ringPulse 4s 1.5s ease-in-out infinite}
+@keyframes ringPulse{0%,100%{transform:scale(1);opacity:0.4}50%{transform:scale(1.03);opacity:0.8}}
+
+.hero-badge{font-family:var(--font-mono);font-size:0.65rem;letter-spacing:4px;color:var(--cyan);
+  background:rgba(0,229,255,0.06);border:1px solid rgba(0,229,255,0.25);padding:0.4rem 1.2rem;
+  border-radius:20px;margin-bottom:2.5rem;text-transform:uppercase;
+  animation:fadeUp 0.8s var(--transition) both;position:relative;
+  box-shadow:0 0 30px rgba(0,229,255,0.1)}
+.hero-badge::before{content:'●';margin-right:0.5rem;animation:blink 1.5s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
+
+.hero-title{font-family:var(--font-display);font-size:clamp(2.5rem,7vw,6.5rem);font-weight:900;line-height:0.95;
+  letter-spacing:-1px;margin-bottom:2rem;animation:fadeUp 0.8s 0.1s var(--transition) both}
+.hero-title .line1{display:block;color:var(--text)}
+.hero-title .line2{display:block;background:linear-gradient(135deg,var(--orange) 0%,#ffcc00 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  position:relative;filter:drop-shadow(0 0 30px rgba(247,147,26,0.3))}
+.hero-title .line3{display:block;background:linear-gradient(135deg,var(--cyan) 0%,#0099bb 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 0 30px rgba(0,229,255,0.3))}
+
+.hero-sub{font-family:var(--font-mono);font-size:0.9rem;color:var(--muted);max-width:480px;line-height:1.8;
+  margin:0 auto 3rem;animation:fadeUp 0.8s 0.2s var(--transition) both}
+
+.hero-cta{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;animation:fadeUp 0.8s 0.3s var(--transition) both}
+.btn-prime{font-family:var(--font-mono);font-size:0.75rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  background:var(--cyan);color:var(--bg);border:none;padding:0.9rem 2.2rem;border-radius:6px;cursor:pointer;
+  transition:all 0.3s;position:relative;overflow:hidden}
+.btn-prime::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.2),transparent);
+  transform:translateX(-100%);transition:transform 0.4s}
+.btn-prime:hover{box-shadow:0 0 40px rgba(0,229,255,0.5);transform:translateY(-3px)}
+.btn-prime:hover::before{transform:translateX(100%)}
+.btn-outline{font-family:var(--font-mono);font-size:0.75rem;letter-spacing:2px;text-transform:uppercase;
+  background:none;color:var(--text);border:1px solid var(--border2);padding:0.9rem 2.2rem;border-radius:6px;
+  cursor:pointer;transition:all 0.3s}
+.btn-outline:hover{border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 20px rgba(0,229,255,0.15);transform:translateY(-3px)}
+
+.ticker-bar{width:100%;border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  background:rgba(0,229,255,0.02);overflow:hidden;padding:0.6rem 0;margin-top:4rem;position:relative;z-index:2}
+.ticker-track{display:flex;gap:3rem;animation:ticker 30s linear infinite;white-space:nowrap}
+.ticker-item{font-family:var(--font-mono);font-size:0.7rem;color:var(--muted);display:flex;align-items:center;gap:0.5rem}
+.ticker-item .sym{color:var(--cyan);font-weight:700}
+.ticker-item .pos{color:var(--green)}
+.ticker-item .neg{color:var(--red)}
+@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+.features{padding:6rem 2rem;max-width:1200px;margin:0 auto}
+.section-eyebrow{font-family:var(--font-mono);font-size:0.65rem;letter-spacing:4px;color:var(--cyan);
+  text-transform:uppercase;margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem}
+.section-eyebrow::before{content:'';width:30px;height:1px;background:var(--cyan)}
+.section-h{font-family:var(--font-display);font-size:clamp(1.8rem,3.5vw,2.8rem);font-weight:700;
+  line-height:1.1;margin-bottom:3.5rem;letter-spacing:-0.5px}
+
+.feat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1px;background:var(--border)}
+.feat-card{background:var(--surface);padding:2.5rem;transition:all 0.4s var(--transition);position:relative;overflow:hidden;cursor:pointer}
+.feat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--cyan),transparent);transform:scaleX(0);transition:transform 0.4s}
+.feat-card::after{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,rgba(0,229,255,0.05),transparent 70%);opacity:0;transition:opacity 0.4s}
+.feat-card:hover{background:var(--surface2);transform:translateY(-4px)}
+.feat-card:hover::before{transform:scaleX(1)}
+.feat-card:hover::after{opacity:1}
+.feat-num{font-family:var(--font-display);font-size:3rem;font-weight:900;color:var(--border2);
+  line-height:1;margin-bottom:1rem;transition:color 0.4s}
+.feat-card:hover .feat-num{color:rgba(0,229,255,0.15)}
+.feat-icon{font-size:1.8rem;margin-bottom:1rem}
+.feat-card h3{font-family:var(--font-display);font-size:0.9rem;font-weight:700;letter-spacing:1px;margin-bottom:0.75rem;text-transform:uppercase}
+.feat-card p{font-family:var(--font-mono);font-size:0.75rem;color:var(--muted);line-height:1.8}
+.feat-arrow{position:absolute;bottom:1.5rem;right:1.5rem;font-size:1.2rem;color:var(--border2);transition:all 0.3s;transform:rotate(-45deg)}
+.feat-card:hover .feat-arrow{color:var(--cyan);transform:rotate(0deg)}
+
+.stats-strip{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--border);margin:4rem 2rem}
+.stat-cell{padding:2.5rem 2rem;text-align:center;border-right:1px solid var(--border);position:relative;overflow:hidden}
+.stat-cell:last-child{border-right:none}
+.stat-cell::before{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--cyan);transform:scaleX(0);transition:transform 0.5s}
+.stat-cell:hover::before{transform:scaleX(1)}
+.stat-val{font-family:var(--font-display);font-size:2.5rem;font-weight:900;
+  background:linear-gradient(135deg,var(--cyan),#0099bb);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.stat-lbl{font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-top:0.4rem}
+
+footer{border-top:1px solid var(--border);padding:3rem 2rem;display:flex;flex-wrap:wrap;
+  gap:2rem;justify-content:space-between;align-items:center;background:var(--bg2)}
+.footer-logo{font-family:var(--font-display);font-size:0.9rem;font-weight:900;letter-spacing:2px;
+  background:linear-gradient(135deg,var(--cyan),#0099bb);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.footer-links{display:flex;gap:1.5rem}
+.footer-links a{font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);text-decoration:none;
+  letter-spacing:2px;text-transform:uppercase;transition:color 0.3s}
+.footer-links a:hover{color:var(--cyan)}
+.footer-copy{font-family:var(--font-mono);font-size:0.65rem;color:var(--dim)}
+
+/* ══════════════════════════════════════
+   PAGE 2 — CONCEPTS
+══════════════════════════════════════ */
+.concepts-wrap{max-width:1200px;margin:0 auto;padding:3rem 2rem}
+.concepts-intro{text-align:center;padding:3rem 0}
+
+.filter-bar{display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;margin-bottom:3rem}
+.filter-btn{font-family:var(--font-mono);font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;
+  background:none;border:1px solid var(--border);color:var(--muted);padding:0.4rem 1rem;
+  border-radius:20px;cursor:pointer;transition:all 0.3s}
+.filter-btn:hover,.filter-btn.active{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,0.08)}
+
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:1.5rem}
+.ccard{border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden;
+  transition:all 0.4s var(--transition);position:relative}
+.ccard::before{content:'';position:absolute;inset:0;border-radius:12px;
+  background:radial-gradient(circle at 50% 0%,rgba(0,229,255,0.04),transparent 60%);
+  opacity:0;transition:opacity 0.4s;pointer-events:none}
+.ccard:hover{transform:translateY(-6px);box-shadow:0 20px 60px rgba(0,0,0,0.5),0 0 40px rgba(0,229,255,0.08);border-color:var(--border2)}
+.ccard:hover::before{opacity:1}
+.ccard-head{padding:1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:1rem;
+  background:linear-gradient(135deg,var(--surface2),var(--surface))}
+.ccard-head .ico{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0}
+.ccard-head h3{font-family:var(--font-display);font-size:0.8rem;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.ccard-head p{font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);margin-top:0.2rem}
+.ccard-body{padding:1.5rem;display:grid;grid-template-columns:1fr 26px 1fr;gap:0.5rem;align-items:start}
+.vs-col{display:flex;align-items:flex-start;justify-content:center;padding-top:1.8rem}
+.vs-badge{font-family:var(--font-display);font-size:0.6rem;font-weight:900;letter-spacing:1px;
+  color:var(--muted);background:var(--bg);border:1px solid var(--border);
+  padding:0.4rem 0.3rem;border-radius:4px;writing-mode:vertical-rl;text-orientation:mixed}
+.side-col h4{font-family:var(--font-mono);font-size:0.6rem;letter-spacing:3px;text-transform:uppercase;
+  margin-bottom:0.75rem;padding:0.25rem 0.6rem;border-radius:3px;display:inline-block}
+.a-head{background:rgba(0,229,255,0.1);color:var(--cyan)}
+.b-head{background:rgba(247,147,26,0.1);color:var(--orange)}
+.side-col ul{list-style:none;display:flex;flex-direction:column;gap:0.35rem}
+.side-col ul li{font-family:var(--font-mono);font-size:0.72rem;color:var(--muted);padding:0.35rem 0.6rem;
+  background:rgba(255,255,255,0.02);border-radius:4px;border-left:2px solid var(--border);
+  transition:all 0.3s;line-height:1.3}
+.ccard:hover .side-a ul li{border-left-color:var(--cyan)}
+.ccard:hover .side-b ul li{border-left-color:var(--orange)}
+.ccard-foot{padding:1rem 1.5rem;border-top:1px solid var(--border);
+  font-family:var(--font-mono);font-size:0.7rem;color:var(--muted);line-height:1.7;
+  background:rgba(0,0,0,0.2)}
+
+/* ══════════════════════════════════════
+   PAGE 3 — LIVE PRICES
+══════════════════════════════════════ */
+.prices-wrap{max-width:1200px;margin:0 auto;padding:3rem 2rem}
+.prices-top{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;margin-bottom:2rem}
+.live-dot{display:inline-flex;align-items:center;gap:0.4rem;font-family:var(--font-mono);font-size:0.65rem;color:var(--green);letter-spacing:2px}
+.live-dot::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.5s ease-in-out infinite;box-shadow:0 0 8px var(--green)}
+.refresh-btn{font-family:var(--font-mono);font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;
+  background:rgba(0,229,255,0.08);color:var(--cyan);border:1px solid rgba(0,229,255,0.3);
+  padding:0.45rem 1.2rem;border-radius:4px;cursor:pointer;transition:all 0.3s;display:flex;align-items:center;gap:0.5rem}
+.refresh-btn:hover{background:rgba(0,229,255,0.15);box-shadow:var(--glow-cyan)}
+.refresh-btn .spin{display:inline-block;transition:transform 0.6s}
+.refresh-btn.loading .spin{animation:rotate 1s linear infinite}
+@keyframes rotate{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+.hero-prices{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;margin-bottom:2rem}
+.hp-card{border-radius:12px;padding:2rem;position:relative;overflow:hidden;
+  border:1px solid var(--border);background:var(--surface);transition:all 0.4s var(--transition)}
+.hp-card::after{content:'';position:absolute;inset:0;border-radius:12px;opacity:0;transition:opacity 0.4s}
+.hp-card:hover{transform:translateY(-4px)}
+.hp-card.btc{border-top:3px solid var(--orange)}
+.hp-card.btc:hover{box-shadow:0 20px 60px rgba(247,147,26,0.15);border-color:var(--orange)}
+.hp-card.eth{border-top:3px solid var(--purple)}
+.hp-card.eth:hover{box-shadow:0 20px 60px rgba(124,58,237,0.15);border-color:var(--purple)}
+.hp-card.sol{border-top:3px solid var(--cyan)}
+.hp-card.sol:hover{box-shadow:0 20px 60px rgba(0,229,255,0.15)}
+
+.hp-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.5rem}
+.hp-coin{display:flex;align-items:center;gap:0.75rem}
+.hp-logo{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1rem;font-weight:900}
+.btc .hp-logo{background:rgba(247,147,26,0.15);color:var(--orange);border:1px solid rgba(247,147,26,0.3)}
+.eth .hp-logo{background:rgba(124,58,237,0.15);color:#a78bfa;border:1px solid rgba(124,58,237,0.3)}
+.sol .hp-logo{background:rgba(0,229,255,0.12);color:var(--cyan);border:1px solid rgba(0,229,255,0.3)}
+.hp-name{font-family:var(--font-display);font-size:1rem;font-weight:700}
+.hp-sym{font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);letter-spacing:2px}
+.hp-rank{font-family:var(--font-mono);font-size:0.6rem;color:var(--muted);background:var(--bg);
+  border:1px solid var(--border);padding:0.2rem 0.5rem;border-radius:3px}
+
+.hp-price{font-family:var(--font-display);font-size:2.2rem;font-weight:900;margin-bottom:0.5rem;
+  transition:all 0.3s;position:relative}
+.hp-price.flash-up{animation:flashGreen 0.6s ease}
+.hp-price.flash-down{animation:flashRed 0.6s ease}
+@keyframes flashGreen{0%,100%{}50%{text-shadow:0 0 30px var(--green);color:var(--green)}}
+@keyframes flashRed{0%,100%{}50%{text-shadow:0 0 30px var(--red);color:var(--red)}}
+.btc .hp-price{color:var(--orange)}
+.eth .hp-price{color:#a78bfa}
+.sol .hp-price{color:var(--cyan)}
+
+.hp-change{display:inline-flex;align-items:center;gap:0.3rem;font-family:var(--font-mono);font-size:0.8rem;font-weight:700;
+  padding:0.25rem 0.6rem;border-radius:4px}
+.pos-change{background:rgba(0,255,136,0.1);color:var(--green);border:1px solid rgba(0,255,136,0.2)}
+.neg-change{background:rgba(255,69,96,0.1);color:var(--red);border:1px solid rgba(255,69,96,0.2)}
+
+.hp-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)}
+.hp-stat .k{font-family:var(--font-mono);font-size:0.6rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase}
+.hp-stat .v{font-family:var(--font-mono);font-size:0.82rem;font-weight:700;margin-top:0.2rem}
+
+/* sparkline mini chart */
+.sparkline{width:100%;height:40px;margin-top:1rem}
+
+.market-table{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)}
+.mt-head{display:grid;grid-template-columns:40px 2fr 1.5fr 1fr 1fr 1fr;padding:0.75rem 1.5rem;
+  background:var(--surface2);border-bottom:1px solid var(--border);
+  font-family:var(--font-mono);font-size:0.6rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;gap:0.5rem}
+.mt-row{display:grid;grid-template-columns:40px 2fr 1.5fr 1fr 1fr 1fr;padding:1rem 1.5rem;
+  border-top:1px solid var(--border);transition:background 0.2s;align-items:center;cursor:pointer;gap:0.5rem}
+.mt-row:hover{background:var(--surface2)}
+.mt-rank{font-family:var(--font-mono);font-size:0.7rem;color:var(--muted)}
+.mt-coin{display:flex;align-items:center;gap:0.75rem}
+.mt-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.mt-sym{font-family:var(--font-mono);font-size:0.8rem;font-weight:700}
+.mt-full{font-family:var(--font-mono);font-size:0.6rem;color:var(--muted)}
+.mt-num{font-family:var(--font-mono);font-size:0.8rem}
+
+.countdown{font-family:var(--font-mono);font-size:0.65rem;color:var(--muted)}
+.countdown #cd{color:var(--cyan);font-weight:700}
+
+/* ══════════════════════════════════════
+   PAGE 4 — BLOCK SIMULATOR
+══════════════════════════════════════ */
+.sim-wrap{max-width:980px;margin:0 auto;padding:3rem 2rem}
+.sim-top{text-align:center;padding:3rem 0 2rem}
+.sim-top p{font-family:var(--font-mono);font-size:0.8rem;color:var(--muted);max-width:520px;margin:.75rem auto 0;line-height:1.8}
+
+.sim-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem}
+@media(max-width:700px){.sim-grid{grid-template-columns:1fr}}
+.sim-panel{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:1.75rem}
+.panel-title{font-family:var(--font-display);font-size:0.7rem;font-weight:700;letter-spacing:3px;
+  text-transform:uppercase;color:var(--cyan);margin-bottom:1.25rem;display:flex;align-items:center;gap:0.5rem}
+.panel-title::before{content:'';width:20px;height:1px;background:var(--cyan)}
+
+.inp-group{display:flex;flex-direction:column;gap:0.4rem;margin-bottom:1rem}
+.inp-label{font-family:var(--font-mono);font-size:0.6rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase}
+.inp{background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);
+  font-size:0.82rem;padding:0.6rem 0.9rem;border-radius:6px;outline:none;transition:all 0.3s;width:100%}
+.inp:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,229,255,0.08)}
+.inp::placeholder{color:var(--dim)}
+
+.diff-row{display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem}
+.diff-lbl{font-family:var(--font-mono);font-size:0.65rem;color:var(--muted);flex-shrink:0}
+.diff-pills{display:flex;gap:0.35rem}
+.dp{font-family:var(--font-display);font-size:0.65rem;font-weight:700;padding:0.3rem 0.7rem;
+  border:1px solid var(--border);background:none;color:var(--muted);border-radius:4px;cursor:pointer;transition:all 0.2s}
+.dp:hover{border-color:var(--cyan);color:var(--cyan)}
+.dp.active{background:rgba(0,229,255,0.12);border-color:var(--cyan);color:var(--cyan);box-shadow:var(--glow-cyan)}
+
+.hash-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1rem;font-family:var(--font-mono);font-size:0.7rem;min-height:70px;word-break:break-all;transition:border-color 0.3s}
+.hash-box.mining{border-color:var(--orange);animation:hashPulse 0.2s ease-in-out infinite}
+.hash-box.found{border-color:var(--green);box-shadow:0 0 20px rgba(0,255,136,0.15)}
+@keyframes hashPulse{0%,100%{border-color:var(--orange)}50%{border-color:rgba(247,147,26,0.3)}}
+.hb-key{font-size:0.55rem;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:0.4rem}
+.hb-val{transition:color 0.2s;line-height:1.5}
+.hb-val.idle{color:var(--muted)}
+.hb-val.hashing{color:var(--orange)}
+.hb-val.done{color:var(--green)}
+
+.mine-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;margin-bottom:1.25rem}
+.ms-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:0.9rem;text-align:center;transition:border-color 0.3s}
+.ms-card.active-stat{border-color:rgba(0,229,255,0.3);animation:statGlow 0.5s ease-in-out infinite alternate}
+@keyframes statGlow{from{box-shadow:none}to{box-shadow:0 0 12px rgba(0,229,255,0.2)}}
+.ms-val{font-family:var(--font-display);font-size:1.1rem;font-weight:700;color:var(--cyan)}
+.ms-key{font-family:var(--font-mono);font-size:0.55rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-top:0.2rem}
+
+.mine-progress{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:1.25rem}
+.mine-bar{height:100%;background:linear-gradient(90deg,var(--cyan),var(--purple));border-radius:2px;
+  width:0%;transition:width 0.1s linear;box-shadow:var(--glow-cyan)}
+
+.mine-cta{width:100%;font-family:var(--font-display);font-size:0.8rem;font-weight:700;letter-spacing:3px;
+  text-transform:uppercase;background:linear-gradient(135deg,var(--cyan),#0099bb);
+  color:var(--bg);border:none;padding:1rem;border-radius:8px;cursor:pointer;transition:all 0.3s;
+  position:relative;overflow:hidden}
+.mine-cta::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.15),transparent);
+  transform:translateX(-100%);transition:transform 0.5s}
+.mine-cta:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 40px rgba(0,229,255,0.4)}
+.mine-cta:hover:not(:disabled)::before{transform:translateX(100%)}
+.mine-cta:disabled{background:linear-gradient(135deg,var(--border2),var(--border));color:var(--muted);cursor:not-allowed;transform:none;box-shadow:none}
+
+.chain-wrap{margin-top:2rem}
+.chain-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem}
+.chain-hdr h3{font-family:var(--font-display);font-size:0.7rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--muted)}
+.chain-actions{display:flex;gap:0.5rem}
+.ca-btn{font-family:var(--font-mono);font-size:0.6rem;letter-spacing:1px;text-transform:uppercase;
+  background:none;border:1px solid var(--border);color:var(--muted);padding:0.3rem 0.8rem;border-radius:4px;cursor:pointer;transition:all 0.2s}
+.ca-btn:hover{border-color:var(--red);color:var(--red)}
+
+.chain-list{display:flex;flex-direction:column;gap:0}
+.block-item{border:1px solid var(--border);border-radius:10px;padding:1.5rem;background:var(--surface);
+  position:relative;transition:all 0.3s;cursor:pointer}
+.block-item:hover{border-color:var(--border2);background:var(--surface2)}
+.block-item.genesis{border-color:var(--orange)}
+.block-item.valid{border-color:var(--cyan)}
+.block-item.tampered{border-color:var(--red);background:rgba(255,69,96,0.04)}
+.block-item.new-in{animation:blockIn 0.5s var(--transition) both}
+@keyframes blockIn{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}
+.block-link{display:flex;align-items:center;justify-content:center;padding:0.4rem 0;
+  font-size:1.1rem;color:var(--border2)}
+.block-row1{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem}
+.bid{font-family:var(--font-display);font-size:0.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+.block-item.genesis .bid{color:var(--orange)}
+.block-item.valid .bid{color:var(--cyan)}
+.block-item.tampered .bid{color:var(--red)}
+.btime{font-family:var(--font-mono);font-size:0.6rem;color:var(--muted)}
+.block-data-el{font-family:var(--font-mono);font-size:0.78rem;color:var(--text);
+  background:var(--bg);padding:0.5rem 0.8rem;border-radius:6px;margin-bottom:0.75rem;
+  border:1px solid var(--border)}
+.block-hashes{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;flex-wrap:wrap}
+.bh-item{display:flex;flex-direction:column;gap:0.2rem}
+.bh-key{font-family:var(--font-mono);font-size:0.55rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase}
+.bh-val{font-family:var(--font-mono);font-size:0.62rem;word-break:break-all}
+.block-item.genesis .bh-val:last-child{color:var(--orange)}
+.block-item.valid .bh-val:last-child{color:var(--green)}
+.block-item.tampered .bh-val:last-child{color:var(--red)}
+
+.tamper-alert{display:none;background:rgba(255,69,96,0.08);border:1px solid rgba(255,69,96,0.4);
+  border-radius:8px;padding:1.2rem 1.5rem;margin-top:1.5rem;
+  font-family:var(--font-mono);font-size:0.78rem;color:var(--red);line-height:1.7;
+  animation:alertPulse 2s ease-in-out infinite}
+.tamper-alert.visible{display:block}
+@keyframes alertPulse{0%,100%{border-color:rgba(255,69,96,0.4)}50%{border-color:rgba(255,69,96,0.8)}}
+
+/* ── LOADING SKELETON ── */
+.skel{background:linear-gradient(90deg,var(--surface) 25%,var(--surface2) 50%,var(--surface) 75%);
+  background-size:200% 100%;animation:skel 1.5s ease-in-out infinite;border-radius:6px;height:1rem}
+@keyframes skel{from{background-position:200% 0}to{background-position:-200% 0}}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:2rem;right:2rem;z-index:9000;display:flex;flex-direction:column;gap:0.5rem}
+.toast-msg{font-family:var(--font-mono);font-size:0.75rem;padding:0.8rem 1.2rem;border-radius:8px;
+  border:1px solid;animation:toastIn 0.4s var(--transition) both;
+  backdrop-filter:blur(12px);max-width:300px}
+.toast-msg.success{background:rgba(0,255,136,0.08);border-color:rgba(0,255,136,0.4);color:var(--green)}
+.toast-msg.error{background:rgba(255,69,96,0.08);border-color:rgba(255,69,96,0.4);color:var(--red)}
+.toast-msg.info{background:rgba(0,229,255,0.08);border-color:rgba(0,229,255,0.3);color:var(--cyan)}
+@keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+
+/* ── TOOLTIP ── */
+.tooltip{position:relative;display:inline-block}
+.tooltip .tip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  background:var(--surface2);border:1px solid var(--border2);border-radius:6px;
+  padding:0.4rem 0.75rem;font-family:var(--font-mono);font-size:0.65rem;color:var(--text);
+  white-space:nowrap;opacity:0;pointer-events:none;transition:opacity 0.2s;z-index:100}
+.tooltip:hover .tip{opacity:1}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--cyan)}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+
+@media(max-width:600px){
+  .nav-btn{padding:0.4rem 0.5rem;font-size:0.55rem;letter-spacing:1px}
+  .stats-strip{grid-template-columns:1fr 1fr}
+  .mt-head,.mt-row{grid-template-columns:40px 2fr 1fr 1fr}
+  .mt-head>*:nth-child(5),.mt-row>*:nth-child(5){display:none}
+  .mt-head>*:nth-child(6),.mt-row>*:nth-child(6){display:none}
+  .block-hashes{grid-template-columns:1fr 1fr}
+  .mine-stats{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- CURSOR -->
+<div id="cursor"></div>
+<div id="cursor-trail"></div>
+
+<!-- BG CANVAS -->
+<canvas id="bg-canvas"></canvas>
+
+<!-- TOAST CONTAINER -->
+<div id="toast"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo" onclick="showPage('home',0)">CHAIN<span>VERSE</span></div>
+  <div class="nav-links" id="nav-links">
+    <button class="nav-btn active" onclick="showPage('home',0)">Home</button>
+    <button class="nav-btn" onclick="showPage('concepts',1)">Concepts</button>
+    <button class="nav-btn" onclick="showPage('prices',2)">Live Prices</button>
+    <button class="nav-btn" onclick="showPage('simulator',3)">Simulator</button>
+    <div class="nav-indicator" id="nav-ind"></div>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════
+     PAGE 1 — HOME
+═══════════════════════════════ -->
+<div id="page-home" class="page active">
+  <!-- Ticker -->
+  <div class="ticker-bar">
+    <div class="ticker-track" id="ticker1">
+      <span class="ticker-item"><span class="sym">BTC</span> $67,420 <span class="pos">▲2.34%</span></span>
+      <span class="ticker-item"><span class="sym">ETH</span> $3,541 <span class="neg">▼1.12%</span></span>
+      <span class="ticker-item"><span class="sym">SOL</span> $182 <span class="pos">▲4.56%</span></span>
+      <span class="ticker-item"><span class="sym">BNB</span> $418 <span class="pos">▲0.87%</span></span>
+      <span class="ticker-item"><span class="sym">ADA</span> $0.48 <span class="neg">▼0.91%</span></span>
+      <span class="ticker-item"><span class="sym">DOT</span> $8.91 <span class="pos">▲3.21%</span></span>
+      <span class="ticker-item"><span class="sym">AVAX</span> $36 <span class="pos">▲1.78%</span></span>
+      <span class="ticker-item"><span class="sym">MATIC</span> $0.92 <span class="neg">▼2.1%</span></span>
+      <!-- duplicate for seamless -->
+      <span class="ticker-item"><span class="sym">BTC</span> $67,420 <span class="pos">▲2.34%</span></span>
+      <span class="ticker-item"><span class="sym">ETH</span> $3,541 <span class="neg">▼1.12%</span></span>
+      <span class="ticker-item"><span class="sym">SOL</span> $182 <span class="pos">▲4.56%</span></span>
+      <span class="ticker-item"><span class="sym">BNB</span> $418 <span class="pos">▲0.87%</span></span>
+      <span class="ticker-item"><span class="sym">ADA</span> $0.48 <span class="neg">▼0.91%</span></span>
+      <span class="ticker-item"><span class="sym">DOT</span> $8.91 <span class="pos">▲3.21%</span></span>
+    </div>
+  </div>
+
+  <section class="hero">
+    <div class="hero-rings"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="ring"></div></div>
+    <div class="hero-badge">⬡ Web3 Learning Platform · v2.0</div>
+    <h1 class="hero-title">
+      <span class="line1">Explore the</span>
+      <span class="line2">Decentralized</span>
+      <span class="line3">Future</span>
+    </h1>
+    <p class="hero-sub">Concepts, live market data, and interactive blockchain simulations — all in one place.</p>
+    <div class="hero-cta">
+      <button class="btn-prime" onclick="showPage('simulator',3)">⛏ Mine a Block</button>
+      <button class="btn-outline" onclick="showPage('concepts',1)">Explore Concepts →</button>
+    </div>
+  </section>
+
+  <div class="stats-strip" id="stats-strip">
+    <div class="stat-cell tooltip">
+      <div class="stat-val" data-target="4">0</div>
+      <div class="stat-lbl">Core Pages</div>
+      <div class="tip">Home, Concepts, Prices, Simulator</div>
+    </div>
+    <div class="stat-cell tooltip">
+      <div class="stat-val" data-target="12">0</div>
+      <div class="stat-lbl">Concepts Covered</div>
+      <div class="tip">Compare Web2, Web3, PoW, PoS & more</div>
+    </div>
+    <div class="stat-cell tooltip">
+      <div class="stat-val" id="live-stat">Live</div>
+      <div class="stat-lbl">Price Feed</div>
+      <div class="tip">CoinGecko API · Auto-refresh 60s</div>
+    </div>
+    <div class="stat-cell tooltip">
+      <div class="stat-val">SHA-256</div>
+      <div class="stat-lbl">Real Hashing</div>
+      <div class="tip">Browser WebCrypto API</div>
+    </div>
+  </div>
+
+  <section class="features">
+    <div class="section-eyebrow">What's inside</div>
+    <h2 class="section-h">Four modules.<br>One cohesive experience.</h2>
+    <div class="feat-grid">
+      <div class="feat-card" onclick="showPage('home',0)">
+        <div class="feat-num">01</div>
+        <div class="feat-icon">🏠</div>
+        <h3>Home / Landing</h3>
+        <p>Your launchpad into Web3 — live ticker, animated rings, and stat counters. Responsive and production-ready.</p>
+        <div class="feat-arrow">↗</div>
+      </div>
+      <div class="feat-card" onclick="showPage('concepts',1)">
+        <div class="feat-num">02</div>
+        <div class="feat-icon">📊</div>
+        <h3>Concepts</h3>
+        <p>Six filterable comparison cards — Web2 vs Web3, Bitcoin vs Ethereum, PoW vs PoS, and more.</p>
+        <div class="feat-arrow">↗</div>
+      </div>
+      <div class="feat-card" onclick="showPage('prices',2)">
+        <div class="feat-num">03</div>
+        <div class="feat-icon">💹</div>
+        <h3>Live Prices</h3>
+        <p>Real-time BTC, ETH, SOL data from CoinGecko. Auto-refreshes every 60s with flash animations on change.</p>
+        <div class="feat-arrow">↗</div>
+      </div>
+      <div class="feat-card" onclick="showPage('simulator',3)">
+        <div class="feat-num">04</div>
+        <div class="feat-icon">⛏️</div>
+        <h3>Block Simulator</h3>
+        <p>Mine real SHA-256 blocks in your browser. Adjust difficulty, tamper with data, watch the chain break.</p>
+        <div class="feat-arrow">↗</div>
+      </div>
+      <div class="feat-card" onclick="showPage('concepts',1)">
+        <div class="feat-num">05</div>
+        <div class="feat-icon">🔐</div>
+        <h3>Cryptography</h3>
+        <p>See how one character change avalanches into a completely different hash — the butterfly effect of SHA-256.</p>
+        <div class="feat-arrow">↗</div>
+      </div>
+      <div class="feat-card" onclick="showPage('prices',2)">
+        <div class="feat-num">06</div>
+        <div class="feat-icon">🌐</div>
+        <h3>Market Data</h3>
+        <p>Full market table with rankings, market cap, volume, and 24h price changes across top cryptocurrencies.</p>
+        <div class="feat-arrow">↗</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="footer-logo">CHAINVERSE</div>
+    <div class="footer-links">
+      <a href="#" onclick="showPage('concepts',1);return false">Concepts</a>
+      <a href="#" onclick="showPage('prices',2);return false">Prices</a>
+      <a href="#" onclick="showPage('simulator',3);return false">Simulator</a>
+    </div>
+    <div class="footer-copy">Powered by CoinGecko API · SHA-256 via WebCrypto · No frameworks · Deploy anywhere</div>
+  </footer>
+</div>
+
+<!-- ═══════════════════════════════
+     PAGE 2 — CONCEPTS
+═══════════════════════════════ -->
+<div id="page-concepts" class="page">
+  <div class="concepts-wrap">
+    <div class="concepts-intro">
+      <div class="section-eyebrow" style="justify-content:center">Core Concepts</div>
+      <h2 class="section-h">Web3 Compared</h2>
+      <p style="font-family:var(--font-mono);font-size:0.8rem;color:var(--muted);max-width:480px;margin:.5rem auto 0;line-height:1.8">Six visual comparison cards to demystify blockchain technology.</p>
+    </div>
+    <div class="filter-bar">
+      <button class="filter-btn active" onclick="filterCards('all',this)">All</button>
+      <button class="filter-btn" onclick="filterCards('web',this)">Web</button>
+      <button class="filter-btn" onclick="filterCards('coins',this)">Coins</button>
+      <button class="filter-btn" onclick="filterCards('consensus',this)">Consensus</button>
+      <button class="filter-btn" onclick="filterCards('wallets',this)">Wallets</button>
+      <button class="filter-btn" onclick="filterCards('trading',this)">Trading</button>
+    </div>
+    <div class="cards-grid" id="cards-grid"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════
+     PAGE 3 — LIVE PRICES
+═══════════════════════════════ -->
+<div id="page-prices" class="page">
+  <div class="prices-wrap">
+    <div class="prices-top">
+      <div>
+        <div class="section-eyebrow">CoinGecko API</div>
+        <h2 class="section-h" style="margin-bottom:0">Live Crypto Prices</h2>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.5rem">
+        <div class="live-dot">LIVE</div>
+        <div class="countdown">Next refresh in <span id="cd">60</span>s</div>
+        <button class="refresh-btn" id="ref-btn" onclick="fetchPrices(true)">
+          <span class="spin">↻</span> Refresh
+        </button>
+      </div>
+    </div>
+    <div class="hero-prices" id="hero-prices">
+      <div style="grid-column:1/-1"><div class="skel" style="height:160px;border-radius:12px"></div></div>
+    </div>
+    <div class="market-table">
+      <div class="mt-head">
+        <div>#</div><div>Asset</div><div>Price</div><div>24h</div><div>Market Cap</div><div>Volume</div>
+      </div>
+      <div id="mt-body"><div class="skel" style="margin:1rem;height:200px"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════
+     PAGE 4 — BLOCK SIMULATOR
+═══════════════════════════════ -->
+<div id="page-simulator" class="page">
+  <div class="sim-wrap">
+    <div class="sim-top">
+      <div class="section-eyebrow" style="justify-content:center">SHA-256 Mining Simulation</div>
+      <h2 class="section-h">Block Simulator</h2>
+      <p>Mine real blocks in your browser using the WebCrypto API. Adjust difficulty, tamper with data, watch the chain invalidate.</p>
+    </div>
+
+    <div class="sim-grid">
+      <!-- LEFT: Input Panel -->
+      <div class="sim-panel">
+        <div class="panel-title">Configure Block</div>
+        <div class="inp-group">
+          <div class="inp-label">Block Data / Transaction</div>
+          <input class="inp" id="bd-input" value="Alice → Bob: 2.5 ETH" placeholder="Enter transaction data..." oninput="liveHash()"/>
+        </div>
+        <div class="inp-group">
+          <div class="inp-label">Miner Address</div>
+          <input class="inp" id="miner-input" value="0xAbCd...F1E2" placeholder="0x..."/>
+        </div>
+        <div class="diff-row">
+          <span class="diff-lbl">Difficulty:</span>
+          <div class="diff-pills">
+            <button class="dp active" onclick="setDiff(1,this)">1 Zero</button>
+            <button class="dp" onclick="setDiff(2,this)">2 Zeros</button>
+            <button class="dp" onclick="setDiff(3,this)">3 Zeros</button>
+            <button class="dp" onclick="setDiff(4,this)">4 Zeros</button>
+          </div>
+        </div>
+        <div class="inp-group">
+          <div class="inp-label">Live Hash Preview (Nonce: 0)</div>
+          <div class="hash-box" id="live-hash-box">
+            <div class="hb-key">SHA-256 Hash</div>
+            <div class="hb-val idle" id="live-hash-val">Computing...</div>
+          </div>
+        </div>
+        <div class="mine-stats">
+          <div class="ms-card" id="stat-nonce-c"><div class="ms-val" id="stat-nonce">0</div><div class="ms-key">Nonce</div></div>
+          <div class="ms-card" id="stat-att-c"><div class="ms-val" id="stat-att">0</div><div class="ms-key">Attempts</div></div>
+          <div class="ms-card"><div class="ms-val" id="stat-time">—</div><div class="ms-key">Time ms</div></div>
+          <div class="ms-card"><div class="ms-val" id="stat-hs">—</div><div class="ms-key">H/sec</div></div>
+        </div>
+        <div class="mine-progress"><div class="mine-bar" id="mine-bar"></div></div>
+        <button class="mine-cta" id="mine-btn" onclick="startMining()">⛏ MINE BLOCK</button>
+      </div>
+
+      <!-- RIGHT: Info Panel -->
+      <div class="sim-panel">
+        <div class="panel-title">How It Works</div>
+        <div style="font-family:var(--font-mono);font-size:0.72rem;color:var(--muted);line-height:2;display:flex;flex-direction:column;gap:.75rem">
+          <div style="padding:1rem;background:var(--bg);border:1px solid var(--border);border-radius:8px">
+            <div style="color:var(--cyan);margin-bottom:.4rem;font-size:.65rem;letter-spacing:2px;text-transform:uppercase">Step 1 — Data Input</div>
+            Block index + previous hash + your data + miner address + nonce are concatenated into a string.
+          </div>
+          <div style="padding:1rem;background:var(--bg);border:1px solid var(--border);border-radius:8px">
+            <div style="color:var(--orange);margin-bottom:.4rem;font-size:.65rem;letter-spacing:2px;text-transform:uppercase">Step 2 — SHA-256 Hashing</div>
+            The string is hashed using the cryptographic SHA-256 algorithm. Output is always 64 hex characters.
+          </div>
+          <div style="padding:1rem;background:var(--bg);border:1px solid var(--border);border-radius:8px">
+            <div style="color:var(--purple);margin-bottom:.4rem;font-size:.65rem;letter-spacing:2px;text-transform:uppercase">Step 3 — Check Target</div>
+            If the hash starts with N leading zeros (difficulty), we found a valid block! Otherwise nonce++.
+          </div>
+          <div style="padding:1rem;background:var(--bg);border:1px solid var(--border);border-radius:8px">
+            <div style="color:var(--green);margin-bottom:.4rem;font-size:.65rem;letter-spacing:2px;text-transform:uppercase">Step 4 — Chain It</div>
+            Valid block is added to the chain. Its hash becomes the previous hash for the next block — immutable!
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chain -->
+    <div class="chain-wrap">
+      <div class="chain-hdr">
+        <h3>⬡ Blockchain — <span id="chain-len">1</span> Block(s)</h3>
+        <div class="chain-actions">
+          <button class="ca-btn" onclick="tamperLatest()">⚡ Tamper Latest Block</button>
+          <button class="ca-btn" style="border-color:var(--border);color:var(--muted)" onclick="resetChain()">✕ Reset Chain</button>
+        </div>
+      </div>
+      <div class="chain-list" id="chain-list"></div>
+      <div class="tamper-alert" id="tamper-alert">
+        ⚠ CHAIN INTEGRITY VIOLATED — A block's data was tampered with. The hash of that block no longer matches the prevHash stored in the next block. This demonstrates why blockchain data is effectively immutable — changing any block invalidates all subsequent blocks.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+// CANVAS BACKGROUND — Particle Network
+// ════════════════════════════════════════════
+const canvas = document.getElementById('bg-canvas');
+const ctx = canvas.getContext('2d');
+let W, H, particles=[], animId;
+const PARTICLE_COUNT = 80;
+
+function resizeCanvas(){
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+class Particle{
+  constructor(){this.reset(true)}
+  reset(init){
+    this.x = Math.random()*W; this.y = init?Math.random()*H:Math.random()*H;
+    this.vx=(Math.random()-0.5)*0.3; this.vy=(Math.random()-0.5)*0.3;
+    this.r = Math.random()*1.5+0.5; this.alpha=Math.random()*0.5+0.1;
+    this.color=Math.random()>0.7?'247,147,26':'0,229,255';
+  }
+  update(){
+    this.x+=this.vx; this.y+=this.vy;
+    if(this.x<0||this.x>W||this.y<0||this.y>H) this.reset(false);
+  }
+  draw(){
+    ctx.beginPath(); ctx.arc(this.x,this.y,this.r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(${this.color},${this.alpha})`; ctx.fill();
+  }
+}
+
+for(let i=0;i<PARTICLE_COUNT;i++) particles.push(new Particle());
+
+let mouseX=W/2, mouseY=H/2;
+document.addEventListener('mousemove',e=>{mouseX=e.clientX;mouseY=e.clientY});
+
+function drawLines(){
+  for(let i=0;i<particles.length;i++){
+    for(let j=i+1;j<particles.length;j++){
+      const dx=particles[i].x-particles[j].x, dy=particles[i].y-particles[j].y;
+      const d=Math.sqrt(dx*dx+dy*dy);
+      if(d<120){
+        ctx.beginPath();
+        ctx.moveTo(particles[i].x,particles[i].y);
+        ctx.lineTo(particles[j].x,particles[j].y);
+        ctx.strokeStyle=`rgba(0,229,255,${0.08*(1-d/120)})`;
+        ctx.lineWidth=0.5; ctx.stroke();
+      }
+    }
+    // connect to mouse
+    const mdx=particles[i].x-mouseX, mdy=particles[i].y-mouseY;
+    const md=Math.sqrt(mdx*mdx+mdy*mdy);
+    if(md<150){
+      ctx.beginPath();
+      ctx.moveTo(particles[i].x,particles[i].y);
+      ctx.lineTo(mouseX,mouseY);
+      ctx.strokeStyle=`rgba(0,229,255,${0.12*(1-md/150)})`;
+      ctx.lineWidth=0.8; ctx.stroke();
+    }
+  }
+}
+
+function animate(){
+  ctx.clearRect(0,0,W,H);
+  particles.forEach(p=>{p.update();p.draw()});
+  drawLines();
+  animId=requestAnimationFrame(animate);
+}
+animate();
+
+// ════════════════════════════════════════════
+// CUSTOM CURSOR
+// ════════════════════════════════════════════
+const cur = document.getElementById('cursor');
+const trail = document.getElementById('cursor-trail');
+let cx=0,cy=0,tx=0,ty=0;
+document.addEventListener('mousemove',e=>{
+  cx=e.clientX; cy=e.clientY;
+  cur.style.left=cx-6+'px'; cur.style.top=cy-6+'px';
+});
+function animCursor(){
+  tx+=(cx-tx)*0.12; ty+=(cy-ty)*0.12;
+  trail.style.left=tx-16+'px'; trail.style.top=ty-16+'px';
+  requestAnimationFrame(animCursor);
+}
+animCursor();
+document.querySelectorAll('button,a,.feat-card,.ccard,.block-item').forEach(el=>{
+  el.addEventListener('mouseenter',()=>{cur.style.transform='scale(2.5)';cur.style.background='var(--orange)';trail.style.transform='scale(1.5)'});
+  el.addEventListener('mouseleave',()=>{cur.style.transform='scale(1)';cur.style.background='var(--cyan)';trail.style.transform='scale(1)'});
+});
+
+// ════════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════════
+const pageNames=['home','concepts','prices','simulator'];
+let currentPage=0;
+
+function showPage(id, idx){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  const btns=document.querySelectorAll('.nav-btn');
+  btns[idx].classList.add('active');
+  currentPage=idx;
+  updateIndicator(idx);
+  if(id==='prices' && !pricesLoaded) fetchPrices(false);
+  if(id==='concepts') renderConceptCards();
+  window.scrollTo(0,0);
+}
+
+function updateIndicator(idx){
+  const btn = document.querySelectorAll('.nav-btn')[idx];
+  const ind = document.getElementById('nav-ind');
+  if(!btn||!ind) return;
+  ind.style.left = btn.offsetLeft+'px';
+  ind.style.width = btn.offsetWidth+'px';
+}
+setTimeout(()=>updateIndicator(0),100);
+window.addEventListener('resize',()=>updateIndicator(currentPage));
+
+// ════════════════════════════════════════════
+// STAT COUNTER ANIMATION
+// ════════════════════════════════════════════
+function animateCounters(){
+  document.querySelectorAll('[data-target]').forEach(el=>{
+    const target = +el.dataset.target;
+    let cur=0;
+    const step = target/30;
+    const t = setInterval(()=>{
+      cur = Math.min(cur+step, target);
+      el.textContent = Math.floor(cur)+(el.dataset.suffix||'');
+      if(cur>=target) clearInterval(t);
+    },40);
+  });
+}
+setTimeout(animateCounters, 400);
+
+// ════════════════════════════════════════════
+// TOAST
+// ════════════════════════════════════════════
+function toast(msg, type='info'){
+  const el=document.createElement('div');
+  el.className=`toast-msg ${type}`;
+  el.textContent=msg;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(()=>{el.style.opacity='0';el.style.transform='translateX(20px)';el.style.transition='all 0.3s';
+    setTimeout(()=>el.remove(),300);
+  }, 3000);
+}
+
+// ════════════════════════════════════════════
+// PAGE 2 — CONCEPTS DATA & RENDER
+// ════════════════════════════════════════════
+const CONCEPTS = [
+  {
+    tag:'web', icon:'🌐', color:'#00e5ff', bg:'rgba(0,229,255,0.08)',
+    title:'Web2 vs Web3', sub:'The evolution of the internet',
+    a:{label:'Web2', items:['Centralized servers','Corp-owned platforms','Read + Write','Trust the company','Your data = product','Easy onboarding']},
+    b:{label:'Web3', items:['Distributed nodes','Community-owned','Read + Write + Own','Trustless code','User-owned data','Crypto wallet required']},
+    foot:'Web3 shifts power from platforms to participants via cryptography and consensus mechanisms.'
+  },
+  {
+    tag:'coins', icon:'⚡', color:'#f7931a', bg:'rgba(247,147,26,0.08)',
+    title:'Bitcoin vs Ethereum', sub:'The two dominant blockchains',
+    a:{label:'Bitcoin', items:['Digital gold','Store of value','Proof of Work','21M supply cap','Script (limited)','Layer 1 only']},
+    b:{label:'Ethereum', items:['World computer','Programmable','Proof of Stake','Flexible supply','Solidity / EVM','Rich L2 ecosystem']},
+    foot:'Bitcoin focuses on sound money. Ethereum powers a programmable decentralized application platform.'
+  },
+  {
+    tag:'consensus', icon:'🔒', color:'#7c3aed', bg:'rgba(124,58,237,0.08)',
+    title:'Proof of Work vs Proof of Stake', sub:'Consensus mechanisms compared',
+    a:{label:'PoW', items:['Miners compete','Energy intensive','Hardware arms race','Battle-tested security','Slow finality','Used by Bitcoin']},
+    b:{label:'PoS', items:['Validators stake ETH','Energy efficient','Capital arms race','Newer model','Fast finality','Used by Ethereum']},
+    foot:'Both prevent double-spend. PoW uses computation; PoS uses economic collateral to enforce honest behavior.'
+  },
+  {
+    tag:'wallets', icon:'🔑', color:'#00ff88', bg:'rgba(0,255,136,0.06)',
+    title:'Custodial vs Non-Custodial', sub:'Who holds your private keys?',
+    a:{label:'Custodial', items:['Exchange holds keys','Simpler UX','Can be hacked','KYC / AML required','Account can freeze','Fiat rails built-in']},
+    b:{label:'Non-Custodial', items:['You hold keys','More complex','Fully sovereign','Pseudonymous','No counterparty risk','Self-custody required']},
+    foot:'"Not your keys, not your coins." Non-custodial wallets give full ownership but full responsibility.'
+  },
+  {
+    tag:'trading', icon:'🔄', color:'#ff4560', bg:'rgba(255,69,96,0.06)',
+    title:'CEX vs DEX', sub:'Centralized vs decentralized exchanges',
+    a:{label:'CEX', items:['Central order book','Company operated','Fast execution','Fiat on-ramps','Custodial','Regulated']},
+    b:{label:'DEX', items:['AMM smart contract','Code operated','Slippage risk','Crypto only','Non-custodial','Permissionless']},
+    foot:'DEXes like Uniswap use Automated Market Makers — eliminating the need for a central order book entirely.'
+  },
+  {
+    tag:'web', icon:'🗄️', color:'#ffd60a', bg:'rgba(255,214,10,0.06)',
+    title:'Blockchain vs Database', sub:'Distributed ledger vs traditional storage',
+    a:{label:'Database', items:['Mutable records','Admin has control','Centralized','Fast reads/writes','Private by default','Standard tooling']},
+    b:{label:'Blockchain', items:['Immutable ledger','No single admin','Distributed','Slower but trustless','Transparent','Specialized tooling']},
+    foot:'Blockchains trade raw performance for verifiability — every record is permanently auditable by anyone.'
+  }
+];
+
+let cardsRendered=false;
+function renderConceptCards(filter='all'){
+  if(cardsRendered && filter==='all') return;
+  const grid=document.getElementById('cards-grid');
+  const filtered = filter==='all' ? CONCEPTS : CONCEPTS.filter(c=>c.tag===filter);
+  grid.innerHTML = filtered.map((c,i)=>`
+    <div class="ccard" style="animation:fadeUp 0.5s ${i*0.08}s var(--transition) both">
+      <div class="ccard-head">
+        <div class="ico" style="background:${c.bg};border:1px solid ${c.color}22">${c.icon}</div>
+        <div>
+          <h3 style="color:${c.color}">${c.title}</h3>
+          <p>${c.sub}</p>
+        </div>
+      </div>
+      <div class="ccard-body">
+        <div class="side-col side-a">
+          <h4 class="a-head">${c.a.label}</h4>
+          <ul>${c.a.items.map(it=>`<li>${it}</li>`).join('')}</ul>
+        </div>
+        <div class="vs-col">
+          <div class="vs-badge">VS</div>
+        </div>
+        <div class="side-col side-b">
+          <h4 class="b-head">${c.b.label}</h4>
+          <ul>${c.b.items.map(it=>`<li>${it}</li>`).join('')}</ul>
+        </div>
+      </div>
+      <div class="ccard-foot">${c.foot}</div>
+    </div>
+  `).join('');
+  cardsRendered = (filter==='all');
+}
+
+function filterCards(tag, btn){
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  cardsRendered = false;
+  renderConceptCards(tag);
+}
+
+// ════════════════════════════════════════════
+// PAGE 3 — LIVE PRICES
+// ════════════════════════════════════════════
+let pricesLoaded=false, priceCountdown=60, countdownTimer=null;
+let prevPrices={};
+
+const COIN_META={
+  bitcoin:{sym:'BTC',label:'₿',cls:'btc',color:'#f7931a',dot:'#f7931a',rank:1},
+  ethereum:{sym:'ETH',label:'Ξ',cls:'eth',color:'#a78bfa',dot:'#a78bfa',rank:2},
+  solana:{sym:'SOL',label:'◎',cls:'sol',color:'#00e5ff',dot:'#00e5ff',rank:5},
+  cardano:{sym:'ADA',label:'₳',cls:'',color:'#3b82f6',dot:'#3b82f6',rank:9},
+  binancecoin:{sym:'BNB',label:'B',cls:'',color:'#f0b90b',dot:'#f0b90b',rank:3},
+  'matic-network':{sym:'MATIC',label:'M',cls:'',color:'#8247e5',dot:'#8247e5',rank:14}
+};
+
+function fmtPrice(n){
+  if(n>=1000) return '$'+n.toLocaleString(undefined,{maximumFractionDigits:0});
+  if(n>=1) return '$'+n.toFixed(2);
+  return '$'+n.toFixed(4);
+}
+function fmtCap(n){
+  if(n>=1e12) return '$'+(n/1e12).toFixed(2)+'T';
+  if(n>=1e9) return '$'+(n/1e9).toFixed(2)+'B';
+  if(n>=1e6) return '$'+(n/1e6).toFixed(2)+'M';
+  return '$'+n.toLocaleString();
+}
+function fmtChg(n){
+  const cls=n>=0?'pos-change':'neg-change';
+  const sym=n>=0?'▲':'▼';
+  return `<span class="${cls}">${sym} ${Math.abs(n).toFixed(2)}%</span>`;
+}
+function fmtChgTxt(n){
+  const cls=n>=0?'change-pos':'change-neg';
+  const sym=n>=0?'+':'';
+  return `<span style="color:${n>=0?'var(--green)':'var(--red)'};font-family:var(--font-mono);font-size:.8rem">${sym}${n.toFixed(2)}%</span>`;
+}
+
+const MOCK_DATA=[
+  {id:'bitcoin',name:'Bitcoin',current_price:67420,price_change_percentage_24h:2.34,market_cap:1327e9,total_volume:28.5e9,sparkline_in_7d:{price:[60000,61000,63000,64000,65000,64500,67420]}},
+  {id:'ethereum',name:'Ethereum',current_price:3541,price_change_percentage_24h:-1.12,market_cap:425e9,total_volume:14.2e9,sparkline_in_7d:{price:[3200,3350,3480,3600,3520,3500,3541]}},
+  {id:'solana',name:'Solana',current_price:182,price_change_percentage_24h:4.56,market_cap:85e9,total_volume:3.9e9,sparkline_in_7d:{price:[155,160,168,172,175,178,182]}},
+  {id:'cardano',name:'Cardano',current_price:0.48,price_change_percentage_24h:-0.87,market_cap:16.9e9,total_volume:520e6,sparkline_in_7d:{price:[0.50,0.49,0.49,0.48,0.49,0.48,0.48]}},
+  {id:'binancecoin',name:'BNB',current_price:418,price_change_percentage_24h:0.87,market_cap:62e9,total_volume:1.2e9,sparkline_in_7d:{price:[405,408,412,415,417,416,418]}},
+  {id:'matic-network',name:'Polygon',current_price:0.92,price_change_percentage_24h:-2.1,market_cap:9.2e9,total_volume:480e6,sparkline_in_7d:{price:[0.98,0.96,0.95,0.94,0.93,0.93,0.92]}}
+];
+
+async function fetchPrices(manual=false){
+  const btn=document.getElementById('ref-btn');
+  btn.classList.add('loading');
+  if(manual) toast('Fetching latest prices…','info');
+
+  let data;
+  try{
+    const res=await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,solana,cardano,binancecoin,matic-network&order=market_cap_desc&sparkline=true&price_change_percentage=24h');
+    if(!res.ok) throw new Error('API');
+    data=await res.json();
+    if(manual) toast('Prices updated!','success');
+  }catch(e){
+    data=MOCK_DATA;
+    if(manual) toast('Live API unavailable · Showing demo data','error');
+  }
+
+  renderHeroPrices(data);
+  renderMarketTable(data);
+  updateTicker(data);
+  prevPrices={};
+  data.forEach(c=>prevPrices[c.id]=c.current_price);
+  pricesLoaded=true;
+  btn.classList.remove('loading');
+
+  clearInterval(countdownTimer);
+  priceCountdown=60;
+  document.getElementById('cd').textContent=priceCountdown;
+  countdownTimer=setInterval(()=>{
+    priceCountdown--;
+    const cd=document.getElementById('cd');
+    if(cd) cd.textContent=priceCountdown;
+    if(priceCountdown<=0){clearInterval(countdownTimer);fetchPrices(false);}
+  },1000);
+}
+
+function renderHeroPrices(data){
+  const top3=data.slice(0,3);
+  const hp=document.getElementById('hero-prices');
+  hp.innerHTML=top3.map(c=>{
+    const m=COIN_META[c.id]||{sym:c.symbol?.toUpperCase(),label:c.symbol?.[0]?.toUpperCase(),cls:'',color:'var(--cyan)'};
+    const chg=c.price_change_percentage_24h;
+    const spark=drawSparkline(c.sparkline_in_7d?.price||[],chg>=0);
+    return `
+    <div class="hp-card ${m.cls}" id="hpc-${c.id}">
+      <div class="hp-row">
+        <div class="hp-coin">
+          <div class="hp-logo">${m.label}</div>
+          <div>
+            <div class="hp-name">${c.name}</div>
+            <div class="hp-sym">${m.sym} · CRYPTOCURRENCY</div>
+          </div>
+        </div>
+        <div class="hp-rank">Rank #${m.rank||'–'}</div>
+      </div>
+      <div class="hp-price" id="hpp-${c.id}" style="color:${m.color}">${fmtPrice(c.current_price)}</div>
+      ${fmtChg(chg)}
+      <div class="hp-grid">
+        <div class="hp-stat"><div class="k">Market Cap</div><div class="v">${fmtCap(c.market_cap)}</div></div>
+        <div class="hp-stat"><div class="k">Volume 24h</div><div class="v">${fmtCap(c.total_volume)}</div></div>
+        <div class="hp-stat"><div class="k">24h High</div><div class="v">${fmtPrice(c.high_24h||c.current_price*1.02)}</div></div>
+        <div class="hp-stat"><div class="k">24h Low</div><div class="v">${fmtPrice(c.low_24h||c.current_price*0.98)}</div></div>
+      </div>
+      <svg class="sparkline" viewBox="0 0 200 40" preserveAspectRatio="none">${spark}</svg>
+    </div>`;
+  }).join('');
+}
+
+function drawSparkline(prices, up){
+  if(!prices||prices.length<2) return '';
+  const mn=Math.min(...prices), mx=Math.max(...prices);
+  const rng=mx-mn||1;
+  const pts=prices.map((p,i)=>`${(i/(prices.length-1)*200).toFixed(1)},${(40-(p-mn)/rng*35+2.5).toFixed(1)}`).join(' ');
+  const color=up?'0,255,136':'255,69,96';
+  return `<polyline points="${pts}" fill="none" stroke="rgba(${color},0.8)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+
+function renderMarketTable(data){
+  const body=document.getElementById('mt-body');
+  body.innerHTML=data.map((c,i)=>{
+    const m=COIN_META[c.id]||{sym:c.symbol?.toUpperCase(),dot:'#888',rank:i+1};
+    const chg=c.price_change_percentage_24h;
+    return `
+    <div class="mt-row">
+      <div class="mt-rank">${m.rank||i+1}</div>
+      <div class="mt-coin">
+        <span class="mt-dot" style="background:${m.dot}"></span>
+        <div><div class="mt-sym">${m.sym}</div><div class="mt-full">${c.name}</div></div>
+      </div>
+      <div class="mt-num" style="color:${m.color||'var(--text)'}">${fmtPrice(c.current_price)}</div>
+      <div class="mt-num">${fmtChgTxt(chg)}</div>
+      <div class="mt-num">${fmtCap(c.market_cap)}</div>
+      <div class="mt-num" style="color:var(--muted)">${fmtCap(c.total_volume)}</div>
+    </div>`;
+  }).join('');
+}
+
+function updateTicker(data){
+  const track=document.getElementById('ticker1');
+  if(!track) return;
+  const items=data.map(c=>{
+    const m=COIN_META[c.id]||{sym:c.symbol?.toUpperCase()};
+    const chg=c.price_change_percentage_24h;
+    return `<span class="ticker-item"><span class="sym">${m.sym}</span> ${fmtPrice(c.current_price)} <span class="${chg>=0?'pos':'neg'}">${chg>=0?'▲':'▼'}${Math.abs(chg).toFixed(2)}%</span></span>`;
+  });
+  const doubled=[...items,...items].join('');
+  track.innerHTML=doubled;
+}
+
+// ════════════════════════════════════════════
+// PAGE 4 — BLOCK SIMULATOR
+// ════════════════════════════════════════════
+let difficulty=1, isMining=false, blockchain=[];
+const TARGET_EST={1:16,2:256,3:4096,4:65536};
+
+async function sha256(msg){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(msg));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function setDiff(d, btn){
+  difficulty=d;
+  document.querySelectorAll('.dp').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  liveHash();
+}
+
+async function liveHash(){
+  const data=document.getElementById('bd-input').value||'';
+  const block=blockchain.length;
+  const prev=blockchain.length>0?blockchain[blockchain.length-1].hash:'0'.repeat(64);
+  const h=await sha256(`${block}${prev}${data}${document.getElementById('miner-input').value}0`);
+  const el=document.getElementById('live-hash-val');
+  const target='0'.repeat(difficulty);
+  el.textContent=h;
+  el.className='hb-val '+(h.startsWith(target)?'done':'idle');
+}
+
+async function startMining(){
+  if(isMining) return;
+  isMining=true;
+  const btn=document.getElementById('mine-btn');
+  btn.disabled=true; btn.textContent='⏳ MINING…';
+
+  const data=document.getElementById('bd-input').value||'Empty';
+  const miner=document.getElementById('miner-input').value||'0x0000';
+  const prevHash=blockchain.length>0?blockchain[blockchain.length-1].hash:'0'.repeat(64);
+  const blockIdx=blockchain.length;
+  const target='0'.repeat(difficulty);
+  const startTime=Date.now();
+  const est=TARGET_EST[difficulty];
+
+  document.getElementById('mine-bar').style.width='0%';
+  const hBox=document.getElementById('live-hash-box');
+  hBox.className='hash-box mining';
+  document.getElementById('live-hash-val').className='hb-val hashing';
+  document.getElementById('stat-nonce-c').classList.add('active-stat');
+  document.getElementById('stat-att-c').classList.add('active-stat');
+
+  let nonce=0, hash='';
+  const BATCH=300;
+
+  const mine=async()=>{
+    for(let i=0;i<BATCH;i++){
+      hash=await sha256(`${blockIdx}${prevHash}${data}${miner}${nonce}`);
+      nonce++;
+      if(nonce%50===0){
+        document.getElementById('stat-nonce').textContent=nonce.toLocaleString();
+        document.getElementById('stat-att').textContent=nonce.toLocaleString();
+        document.getElementById('live-hash-val').textContent=hash;
+        const prog=Math.min((nonce/est)*100,95);
+        document.getElementById('mine-bar').style.width=prog+'%';
+      }
+      if(hash.startsWith(target)){
+        const elapsed=Date.now()-startTime;
+        document.getElementById('stat-nonce').textContent=(nonce-1).toLocaleString();
+        document.getElementById('stat-att').textContent=(nonce-1).toLocaleString();
+        document.getElementById('stat-time').textContent=elapsed;
+        document.getElementById('stat-hs').textContent=Math.round(nonce/(elapsed/1000)).toLocaleString();
+        document.getElementById('mine-bar').style.width='100%';
+        document.getElementById('live-hash-val').textContent=hash;
+        document.getElementById('live-hash-val').className='hb-val done';
+        hBox.className='hash-box found';
+        document.getElementById('stat-nonce-c').classList.remove('active-stat');
+        document.getElementById('stat-att-c').classList.remove('active-stat');
+
+        const block={index:blockIdx,data,miner,nonce:nonce-1,prevHash,hash,ts:new Date().toLocaleTimeString()};
+        blockchain.push(block);
+        renderChain();
+        isMining=false;
+        btn.disabled=false;
+        btn.textContent='⛏ MINE BLOCK';
+        document.getElementById('chain-len').textContent=blockchain.length;
+        toast(`Block #${blockIdx} mined! Nonce: ${(nonce-1).toLocaleString()}`,'success');
+        return;
+      }
+    }
+    requestAnimationFrame(mine);
+  };
+  requestAnimationFrame(mine);
+}
+
+function renderChain(){
+  const list=document.getElementById('chain-list');
+  list.innerHTML='';
+  blockchain.forEach((b,i)=>{
+    if(i>0){
+      const link=document.createElement('div');
+      link.className='block-link'; link.innerHTML='↕'; list.appendChild(link);
+    }
+    const div=document.createElement('div');
+    const isGenesis=i===0;
+    // Check chain validity
+    const prevOk = i===0 || b.prevHash===blockchain[i-1].hash;
+    const cls = isGenesis?'genesis':(prevOk?'valid':'tampered');
+    div.className=`block-item ${cls}${i===blockchain.length-1?' new-in':''}`;
+    div.innerHTML=`
+      <div class="block-row1">
+        <span class="bid">Block #${b.index}${isGenesis?' — Genesis':''}</span>
+        <span class="btime">${b.ts}</span>
+      </div>
+      <div class="block-data-el">📦 ${b.data}</div>
+      <div class="block-hashes">
+        <div class="bh-item"><div class="bh-key">Nonce</div><div class="bh-val" style="color:var(--orange)">${b.nonce.toLocaleString()}</div></div>
+        <div class="bh-item"><div class="bh-key">Prev Hash</div><div class="bh-val" style="color:var(--muted)">${b.prevHash.slice(0,20)}…</div></div>
+        <div class="bh-item"><div class="bh-key">Block Hash</div><div class="bh-val">${b.hash.slice(0,20)}…</div></div>
+      </div>`;
+    list.appendChild(div);
+  });
+  checkChainIntegrity();
+}
+
+function checkChainIntegrity(){
+  let valid=true;
+  for(let i=1;i<blockchain.length;i++){
+    if(blockchain[i].prevHash!==blockchain[i-1].hash){valid=false;break;}
+  }
+  const alert=document.getElementById('tamper-alert');
+  alert.className='tamper-alert'+(valid?'':' visible');
+}
+
+function tamperLatest(){
+  if(blockchain.length<1){toast('Mine a block first!','error');return;}
+  const idx=blockchain.length-1;
+  blockchain[idx].data='⚡ TAMPERED DATA — '+Date.now();
+  toast('Block #'+idx+' data tampered! Chain integrity violated.','error');
+  renderChain();
+}
+
+function resetChain(){
+  blockchain=[];
+  document.getElementById('chain-len').textContent='1';
+  document.getElementById('tamper-alert').className='tamper-alert';
+  initGenesis();
+  toast('Chain reset to genesis.','info');
+}
+
+async function initGenesis(){
+  const genesisHash=await sha256('CHAINVERSE_GENESIS_BLOCK_V2_'+Date.now());
+  blockchain=[{
+    index:0,data:'🏛 Genesis Block — ChainVerse v2',miner:'System',
+    nonce:0,prevHash:'0'.repeat(64),
+    hash:'0000'+genesisHash.slice(4),ts:new Date().toLocaleTimeString()
+  }];
+  document.getElementById('chain-len').textContent='1';
+  renderChain();
+}
+initGenesis();
+setTimeout(liveHash, 200);
+
+// Observe concepts page for lazy render
+const observer=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{if(e.isIntersecting) renderConceptCards()});
+});
+const conceptsPage=document.getElementById('page-concepts');
+if(conceptsPage) observer.observe(conceptsPage);
+</script>
+</body>
+</html>
